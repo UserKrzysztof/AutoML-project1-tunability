@@ -82,3 +82,35 @@ class DataLoader():
     @property
     def transformed_data(self):
         return [self.transform_to_X_y(data) for data in self.load()]
+    
+
+class DataSaver():
+    def __init__(self, data_path: str = None):
+        data_path_checked = type(data_path) is str and os.path.isdir(data_path)
+        if not data_path_checked: print("Using default history path")
+        self.path = data_path if data_path_checked else HISTORY_PATH
+
+    def save(self, datasets: List[pd.DataFrame], prefix:str ,indexes:List[str]):
+        assert len(datasets) == len(indexes), "Length of datasets and indexes should be equal"
+        for i, df in enumerate(datasets):
+            df.to_csv(os.path.join(self.path, f'{prefix}_{indexes[i]}.csv'), index=False)
+
+def get_best_params_overall(df):
+    df['params_str'] = df['params'].apply(lambda x: str(x))
+    grouped_mean = df.groupby(['params_str'])['mean_test_score'].mean().reset_index()
+    grouped_mean.sort_values(by='mean_test_score', ascending=False, inplace=True)
+    return grouped_mean.iloc[0, 0], grouped_mean.iloc[0, 1]
+
+def get_best_params_per_dataset(df):
+    df['params_str'] = df['params'].apply(lambda x: str(x))
+    best_params_per_dataset = df.sort_values(['dataset', 'rank_test_score'], ascending=[True, True]).groupby('dataset').first().reset_index()
+    best_params_per_dataset.rename(columns={'params_str': 'best_params', 'mean_test_score': 'best_score'}, inplace=True)
+    best_params_per_dataset = best_params_per_dataset[['dataset', 'best_params', 'best_score']]
+    default_params, _ = get_best_params_overall(df)
+    score_for_default_params = df[df['params_str'] == default_params][['dataset', 'mean_test_score']].rename(columns={'mean_test_score': 'default_score'})
+    best_params_per_dataset = best_params_per_dataset.merge(score_for_default_params, on='dataset', how='left')
+    best_params_per_dataset['abs_tunability'] = best_params_per_dataset['best_score'] - best_params_per_dataset['default_score']
+    best_params_per_dataset['rel_tunability (%)'] = best_params_per_dataset['abs_tunability'] / best_params_per_dataset['default_score'] * 100 
+    return best_params_per_dataset
+        
+
