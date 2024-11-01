@@ -10,12 +10,17 @@ from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
 from xgboost import XGBClassifier
+import os
 
 CLASSIFIERS = [
     DecisionTreeClassifier(),
     RandomForestClassifier(),
     XGBClassifier(),
 ]
+
+DATA_PATH = "../data"
+
+HISTORY_PATH = "../history"
 
 class ModelSuplier():
     def __init__(self, classifiers: Optional[List[Union[BaseEstimator, ClassifierMixin]]] = None):
@@ -54,3 +59,26 @@ class ModelSuplier():
     @property
     def pipelines(self):
         return [self._create_pipe(clf) for clf in self.classifiers]
+    
+
+class DataLoader():
+    def __init__(self, data_path: str = None):
+        data_path_checked = type(data_path) is str and os.path.isdir(data_path)
+        if not data_path_checked: print("Using default path")
+        self.path = data_path if data_path_checked else DATA_PATH
+
+    def load(self):
+        data = []
+        for file in os.listdir(self.path):
+            data.append(pd.read_csv(os.path.join(self.path,file)))
+        return data
+    
+    def transform_to_X_y(self, data: pd.DataFrame):
+        """
+        Last column of the data should be target.
+        """
+        return data.iloc[:, :-1], LabelEncoder().fit_transform(data.iloc[:,-1])
+    
+    @property
+    def transformed_data(self):
+        return [self.transform_to_X_y(data) for data in self.load()]
