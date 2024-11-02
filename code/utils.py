@@ -1,10 +1,9 @@
 from typing import List, Optional, Union
-from exceptiongroup import catch
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, ClassifierMixin, is_classifier
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.pipeline import Pipeline, make_pipeline
+from sklearn.pipeline import Pipeline
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, LabelEncoder
@@ -112,5 +111,23 @@ def get_best_params_per_dataset(df):
     best_params_per_dataset['abs_tunability'] = best_params_per_dataset['best_score'] - best_params_per_dataset['default_score']
     best_params_per_dataset['rel_tunability (%)'] = best_params_per_dataset['abs_tunability'] / best_params_per_dataset['default_score'] * 100 
     return best_params_per_dataset
-        
+
+def get_best_params_per_dataset_for_measuring_param_tunability(df, history):
+    df['params_str'] = df['params'].apply(lambda x: str(x))
+    best_params_per_dataset = df.sort_values(['dataset', 'rank_test_score'], ascending=[True, True]).groupby('dataset').first().reset_index()
+    best_params_per_dataset.rename(columns={'params_str': 'best_params', 'mean_test_score': 'best_score'}, inplace=True)
+    best_params_per_dataset = best_params_per_dataset[['dataset', 'best_params', 'best_score']]
+    default_params, _ = get_best_params_overall(history)
+    score_for_default_params = history[history['params_str'] == default_params][['dataset', 'mean_test_score']].rename(columns={'mean_test_score': 'default_score'})
+    best_params_per_dataset = best_params_per_dataset.merge(score_for_default_params, on='dataset', how='left')
+    condition = best_params_per_dataset['best_score'] < best_params_per_dataset['default_score']
+    best_params_per_dataset.loc[condition, 'best_score'] = best_params_per_dataset['default_score']
+    best_params_per_dataset.loc[condition, 'best_params'] = default_params
+    best_params_per_dataset['abs_tunability'] = (best_params_per_dataset['best_score'] - best_params_per_dataset['default_score'])
+    best_params_per_dataset['rel_tunability (%)'] = best_params_per_dataset['abs_tunability'] / best_params_per_dataset['default_score'] * 100 
+    return best_params_per_dataset
+
+
+
+
 
